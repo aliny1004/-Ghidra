@@ -37,8 +37,26 @@
    * 跳出「Analyze?」→ 選 Yes → 用預設設定 → OK
 
 ## 在 Functions 找到 `PyInit__...`
-1. 左側 Symbol Tree 視窗
-2. 展開 Functions
-3. 找到並點 `PyInit__speedups`
+C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始化流程的起點
 
-   <img width="273" height="349" alt="image" src="https://github.com/user-attachments/assets/0df3f366-133c-40ef-8a3b-774e4b0494e9" />
+所有這個 module 的「方法表 (`PyMethodDef`)、型別物件、初始化邏輯」
+幾乎一定會在這裡被註冊給 Python
+
+你想知道哪個函式會被 Python call，一定要來這裡找
+   1. 左側 Symbol Tree 視窗
+   2. 展開 Functions
+   3. 找到並點 `PyInit__speedups`
+   
+      <img width="273" height="349" alt="image" src="https://github.com/user-attachments/assets/0df3f366-133c-40ef-8a3b-774e4b0494e9" />
+
+## 在 `PyInit__speedups` 裡找到方法表 (`PyMethodDef`)
+   1. 右側 Decompile 反編譯視窗
+   2. 看到兩個關鍵資訊：
+      - 呼叫 PyModuleDef_Init(...)
+      - (...) 中的參數是 &module_definition  
+      
+      <img width="685" height="227" alt="image" src="https://github.com/user-attachments/assets/de88636f-d82f-4026-8310-e2c3c79d7b67" />
+
+      > 代表這個 C 擴充模組的所有資訊（名字、方法表、等等）  
+      > 都被包在一個 PyModuleDef 中的 module_definition 結構裡
+      

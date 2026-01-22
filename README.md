@@ -52,11 +52,17 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
 ## 在 `PyInit__speedups` 裡找到方法表 (`PyMethodDef`)
    1. 右側 Decompile 反編譯視窗
    2. 看到兩個關鍵資訊：
-      - 呼叫 PyModuleDef_Init(...)
-      - (...) 中的參數是 &module_definition  
+      - 呼叫 `PyModuleDef_Init(...)`
+      - (...) 中的參數是 `&module_definition`  
       
       <img width="685" height="227" alt="image" src="https://github.com/user-attachments/assets/de88636f-d82f-4026-8310-e2c3c79d7b67" />
 
       > 代表這個 C 擴充模組的所有資訊（名字、方法表、等等）  
-      > 都被包在一個 PyModuleDef 中的 module_definition 結構裡
-      
+      > 都被包在一個 `PyModuleDef` 中的 `module_definition` 結構裡
+
+## 跳到 `module_definition` 這個結構本體
+   1. 在右側 Decompile 視窗裡，用滑鼠左鍵雙擊 `module_definition` 後 Ghidra 就會跳到那個 symbol
+   2. 現在看向中間的 Listing 視窗, 會跳到那個 data 結構的位置
+
+      <img width="1293" height="550" alt="image" src="https://github.com/user-attachments/assets/9a779402-ecb4-482a-936d-dfd98c5e77cc" />
+

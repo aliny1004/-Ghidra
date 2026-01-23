@@ -60,20 +60,49 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
       > 代表這個 C 擴充模組的所有資訊（名字、方法表、等等）  
       > 都被包在一個 `PyModuleDef` 中的 `module_definition` 結構裡
 
-## 跳到 `module_definition` 這個結構本體
+## 方法表 (`PyMethodDef`) 在 `module_definition` (`PyModuleDef`) 的結構本體中
    1. 在右側 Decompile 視窗裡，用滑鼠左鍵雙擊 `module_definition` 後 Ghidra 就會跳到那個 symbol
    2. 現在看向中間的 Listing 視窗, 會跳到那個 data 結構的位置
       - module_definition 就是這個 binary 的模組定義  
-      - 它告訴 Python：這個 .so 要被當成哪一個模組、叫什麼名字、有哪些函式可以給 Python 用  
-      - 例如有 escape 這個功能，它的 C 實作叫 escape_unicode 等
-   3. 內容包括：
-      - 模組名字："markupsafe._speedups"（m_name）  
-      - 方法表指標：module_methods（m_methods）  
-      - 其他 GC、doc 等等（m_doc, m_traverse…）
-   4. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
-      函式表中：  
-      - 名字叫 "escape" 的 Python 函式 → 真正要 call 的 C 函式是 escape_unicode  
+      - 它告訴 Python：這個 .so 要被當成哪一個模組、叫什麼名字、有哪些函式可以給 Python 用
+     
+   3. 現在將滑鼠懸停在 `PyModuleDef` 上, 就能看到他的資料型別的結構
+      - 內容大概是這樣：而方法表 (`PyMethodDef`) 也顯然在列
+        ```C
+        struct PyModuleDef
+         Length:104(0x68) Alignment:8
+        {
+            PyModuleDef_Base   m_base;     // 模組的基礎資訊（版本、size 等，共用 header）
+            char *             m_name;     // 模組名稱字串，例如 "markupsafe._speedups"
+            char *             m_doc;      // 模組的說明文字（__doc__），可以是 NULL
+            Py_ssize_t         m_size;     // 模組「狀態大小」：-1 代表沒有 per-module state
+            PyMethodDef *      m_methods;  // 指向方法表陣列（module_methods），定義所有 C 函式
+            PyModuleDef_Slot * m_slots;    // PEP 489 用的 slots，一般簡單模組多半是 NULL
+            traverseproc       m_traverse; // 給 GC 用的 traverse 函式（標記物件），常為 NULL
+            inquiry            m_clear;    // 清理模組狀態用的 callback，常為 NULL
+            freefunc           m_free;     // 卸載模組時釋放資源用的 free 函式，常為 NULL
+        } pack()
+        ```
 
-      <img width="1293" height="550" alt="image" src="https://github.com/user-attachments/assets/9a779402-ecb4-482a-936d-dfd98c5e77cc" />
+      <img width="1150" height="585" alt="image" src="https://github.com/user-attachments/assets/3194d018-0945-47ad-a515-d3b17c464daf" />
+   
+   ## 跳到 `module_methods` (`PyMethodDef`) 尋找真正要 call 的函式
+   1. 在 Listing 視窗中, `PyModuleDef` data 結構的位置往下, 就會看到 `module_methods`  
+      雙擊它 跳到 `PyMethodDef` data 結構的位置
+
+      <img width="1149" height="423" alt="image" src="https://github.com/user-attachments/assets/7d70650c-a49f-47d2-bef0-71fa8db59fed" />
+   
+   3. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
+      函式表中：  
+      - 名字叫 "escape" 的 Python 函式 → 真正要 call 的 C 函式是 escape_unicode
+
+      
+
+
+## 
+   1. 123
+
+      <img width="1289" height="396" alt="image" src="https://github.com/user-attachments/assets/cd04ac9e-561f-4127-bb74-902628c907f7" />
+
 
 

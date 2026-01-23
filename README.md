@@ -63,6 +63,17 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
 ## 跳到 `module_definition` 這個結構本體
    1. 在右側 Decompile 視窗裡，用滑鼠左鍵雙擊 `module_definition` 後 Ghidra 就會跳到那個 symbol
    2. 現在看向中間的 Listing 視窗, 會跳到那個 data 結構的位置
+      - module_definition 就是這個 binary 的模組定義  
+      - 它告訴 Python：這個 .so 要被當成哪一個模組、叫什麼名字、有哪些函式可以給 Python 用  
+      - 例如有 escape 這個功能，它的 C 實作叫 escape_unicode 等
+   3. 內容包括：
+      - 模組名字："markupsafe._speedups"（m_name）  
+      - 方法表指標：module_methods（m_methods）  
+      - 其他 GC、doc 等等（m_doc, m_traverse…）
+   4. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
+      函式表中：  
+      - 名字叫 "escape" 的 Python 函式 → 真正要 call 的 C 函式是 escape_unicode  
 
       <img width="1293" height="550" alt="image" src="https://github.com/user-attachments/assets/9a779402-ecb4-482a-936d-dfd98c5e77cc" />
+
 

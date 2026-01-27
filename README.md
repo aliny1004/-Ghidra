@@ -108,7 +108,7 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
 
          <img width="1150" height="585" alt="image" src="https://github.com/user-attachments/assets/3194d018-0945-47ad-a515-d3b17c464daf" />
    
-   ## 跳到 `module_methods` (`PyMethodDef`) 尋找真正要 call 的函式
+   ## 跳到 `module_methods` (`PyMethodDef`) 尋找真正要被呼叫的函式
    1. 在 Listing 視窗中, `PyModuleDef` data 結構的位置往下, 就會看到 `module_methods`  
       - 雙擊它 即可跳到 `PyMethodDef` data 結構的位置
 
@@ -123,7 +123,7 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
    3. 將鼠標懸停在 `PyMethodDef` 查看他的資料型別的結構
       <img width="1032" height="372" alt="image" src="https://github.com/user-attachments/assets/2e8cba30-fb33-45ae-b164-93492165ee79" />
 
-      - 會發現有可奇怪錯誤的地方 `byte`
+      - 會發現有奇怪錯誤的地方 `byte`
 
         ```c!
         struct PyMethodDef {

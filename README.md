@@ -68,7 +68,7 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
      
    3. 現在將滑鼠懸停在 `PyModuleDef` 上, 就能看到他的資料型別的結構
       - 內容大概是這樣：而方法表 (`PyMethodDef`) 也顯然在列
-        ```C
+        ```C!
         struct PyModuleDef
          Length:104(0x68) Alignment:8
         {
@@ -88,21 +88,60 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
    
    ## 跳到 `module_methods` (`PyMethodDef`) 尋找真正要 call 的函式
    1. 在 Listing 視窗中, `PyModuleDef` data 結構的位置往下, 就會看到 `module_methods`  
-      雙擊它 跳到 `PyMethodDef` data 結構的位置
+      雙擊它 即可跳到 `PyMethodDef` data 結構的位置
 
       <img width="1149" height="423" alt="image" src="https://github.com/user-attachments/assets/7d70650c-a49f-47d2-bef0-71fa8db59fed" />
    
-   3. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
+   2. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
       函式表中：  
       - 名字叫 "escape" 的 Python 函式 → 真正要 call 的 C 函式是 escape_unicode
 
-      
-
-
-## 
-   1. 123
-
       <img width="1289" height="396" alt="image" src="https://github.com/user-attachments/assets/cd04ac9e-561f-4127-bb74-902628c907f7" />
+
+   3. 將鼠標懸停在 `PyMethodDef` 查看他的資料型別的結構
+      <img width="1032" height="372" alt="image" src="https://github.com/user-attachments/assets/2e8cba30-fb33-45ae-b164-93492165ee79" />
+
+      - 會發現有可奇怪錯誤的地方 `byte`
+
+        ```c!
+        struct PyMethodDef {
+            char *ml_name;   // 8 bytes
+            byte  field_0x8; // 1 byte（這裡應該是 8 bytes 的指標）
+            int   ml_flags;  // 4 bytes
+            char *ml_doc;    // 8 bytes
+        };                   // 透過 padding 對齊成 24 bytes
+        ```
+
+      - 正確的話要顯示 `void  *ml_meth`, 但這只是 Ghidra 分析錯誤 並不影響運行
+
+      ```c!
+      struct PyMethodDef {
+          char  *ml_name;   // Python 這邊看到的函式名稱，例如 "escape"
+          void  *ml_meth;   // 指向真正 C 實作的函式指標（PyCFunction）
+          int    ml_flags;  // 呼叫方式／參數型態旗標（METH_O、METH_VARARGS 等）
+          char  *ml_doc;    // 函式說明字串（__doc__），可以是 NULL
+      };
+      ```
+
+   ## 分析 `escape_unicode` 後續用於 exploit 腳本時, 所需的參數  
+   1. 確認 0x30c8 這格的值 = `escape_unicode` → 也就是 `ml_meth` 指向的 C 函式  
+      <img width="1038" height="368" alt="image" src="https://github.com/user-attachments/assets/6b39e619-4469-4835-8c2e-9c2c63b330cf" />
+
+      - 之後 Python 呼叫這個 method，就會透過 `ml_meth` 跳到 `escape_unicode`
+      > 流程：只要我把 0x30c8 那個函式指標改成 shellcode 的位址，
+      > Python 呼叫這個函式時，就會執行我的 shellcode
+
+   2. 雙擊 `escape_unicode` 跳到函式的 data 位置  
+      <img width="1148" height="577" alt="image" src="https://github.com/user-attachments/assets/18661f08-41f5-4129-959a-468f63f75656" />
+      
+      - 現在這張圖說明「escape_unicode 的實際 code 起點 = 0x1130」, 真實 code 位址 = addr + 0x1130
+      > 只要 call escape_unicode，就一定是從 0x1130 開始跑。
+      > 那我把 0x1130 開頭那一段換成 shellcode，我的 shellcode 就一定會被執行
+
+   3. 側邊的 `escape_unicode` 反編譯內容  
+      <img width="490" height="546" alt="image" src="https://github.com/user-attachments/assets/6954d4ed-42b9-45f3-a710-c8706a3e3878" />
+
+      - 這整段都將被我覆蓋成 shellcode, 對這次漏洞利用沒有幫助
 
 
 

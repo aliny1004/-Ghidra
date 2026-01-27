@@ -1,4 +1,26 @@
 # 用 Ghidra 分析 binary (此為 uoftctf2026_fileupload 的 binary)
+## 前言  
+#### 為什麼要分析這顆 binary (`_speedups.cpython-312-x86_64-linux-gnu.so`)
+- 在這題 CTF 裡，只要我對網頁做 **上傳 / 讀取** 操作，就會觸發這顆 `.so` 被載入、執行，而且我對它有 **讀寫權限，可以覆蓋檔案內容** 
+- 這顆是 MarkupSafe 的 **C 擴充模組（Python C extension）**  
+- 題目的 Flask 在 render template / escape HTML 時，會呼叫 MarkupSafe，因此也會用到這顆 `.so`  
+- 結論：只要 Flask 有在「渲染 HTML」，就有機會 **呼叫到這顆 .so 裡的 C 函式**，如果我能控制這顆 `.so`，就能拿來做 RCE
+
+#### 目標是：
+找到一個「會被 Flask / MarkupSafe 穩定呼叫」而且「我可以改成任意 code」的地方，
+然後把它改成 **reverse shell**
+
+#### 要做到這件事，要在 binary 裡找到三樣東西：
+
+1. **固定會被 call 的函式入口（function entry）**
+   - 之後就可以把這段原本的機器碼直接換成 shellcode
+
+2. **一個會被 Python 用來 call 這個函式的「函式指標」**
+   - 可以把它改成指向我的 shellcode
+
+3. 上述兩項在 檔案 / 記憶體 裡的「位置（offset / address）」
+   - 檔案裡的 offset（方便後續修改 `.so` 檔）  
+   - 記憶體裡的實際位址（透過 `/proc/self/maps` 洩漏 base address 之後計算出來）
 
 ## 前置作業（下載本體＆安裝環境）
 1. 安裝 JDK
@@ -84,19 +106,19 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
         } pack()
         ```
 
-      <img width="1150" height="585" alt="image" src="https://github.com/user-attachments/assets/3194d018-0945-47ad-a515-d3b17c464daf" />
+         <img width="1150" height="585" alt="image" src="https://github.com/user-attachments/assets/3194d018-0945-47ad-a515-d3b17c464daf" />
    
    ## 跳到 `module_methods` (`PyMethodDef`) 尋找真正要 call 的函式
    1. 在 Listing 視窗中, `PyModuleDef` data 結構的位置往下, 就會看到 `module_methods`  
-      雙擊它 即可跳到 `PyMethodDef` data 結構的位置
+      - 雙擊它 即可跳到 `PyMethodDef` data 結構的位置
 
-      <img width="1149" height="423" alt="image" src="https://github.com/user-attachments/assets/7d70650c-a49f-47d2-bef0-71fa8db59fed" />
+         <img width="1149" height="423" alt="image" src="https://github.com/user-attachments/assets/7d70650c-a49f-47d2-bef0-71fa8db59fed" />
    
    2. 方法表指標：module_methods ＝ 一個「C 函式列表」, 裡面會列出這個模組要給 Python 用的所有函式  
       函式表中：  
       - 名字叫 "escape" 的 Python 函式 → 真正要 call 的 C 函式是 escape_unicode
 
-      <img width="1289" height="396" alt="image" src="https://github.com/user-attachments/assets/cd04ac9e-561f-4127-bb74-902628c907f7" />
+         <img width="1289" height="396" alt="image" src="https://github.com/user-attachments/assets/cd04ac9e-561f-4127-bb74-902628c907f7" />
 
    3. 將鼠標懸停在 `PyMethodDef` 查看他的資料型別的結構
       <img width="1032" height="372" alt="image" src="https://github.com/user-attachments/assets/2e8cba30-fb33-45ae-b164-93492165ee79" />
@@ -114,27 +136,27 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
 
       - 正確的話要顯示 `void  *ml_meth`, 但這只是 Ghidra 分析錯誤 並不影響運行
 
-      ```c!
-      struct PyMethodDef {
-          char  *ml_name;   // Python 這邊看到的函式名稱，例如 "escape"
-          void  *ml_meth;   // 指向真正 C 實作的函式指標（PyCFunction）
-          int    ml_flags;  // 呼叫方式／參數型態旗標（METH_O、METH_VARARGS 等）
-          char  *ml_doc;    // 函式說明字串（__doc__），可以是 NULL
-      };
-      ```
+        ```c!
+        struct PyMethodDef {
+            char  *ml_name;   // Python 這邊看到的函式名稱，例如 "escape"
+            void  *ml_meth;   // 指向真正 C 實作的函式指標（PyCFunction）
+            int    ml_flags;  // 呼叫方式／參數型態旗標（METH_O、METH_VARARGS 等）
+            char  *ml_doc;    // 函式說明字串（__doc__），可以是 NULL
+        };
+        ```
 
    ## 分析 `escape_unicode` 後續用於 exploit 腳本時, 所需的參數  
    1. 確認 0x30c8 這格的值 = `escape_unicode` → 也就是 `ml_meth` 指向的 C 函式  
       <img width="1038" height="368" alt="image" src="https://github.com/user-attachments/assets/6b39e619-4469-4835-8c2e-9c2c63b330cf" />
 
-      - 之後 Python 呼叫這個 method，就會透過 `ml_meth` 跳到 `escape_unicode`
+      之後 Python 呼叫這個 method，就會透過 `ml_meth` 跳到 `escape_unicode`
       > 流程：只要我把 0x30c8 那個函式指標改成 shellcode 的位址，
       > Python 呼叫這個函式時，就會執行我的 shellcode
 
    2. 雙擊 `escape_unicode` 跳到函式的 data 位置  
       <img width="1148" height="577" alt="image" src="https://github.com/user-attachments/assets/18661f08-41f5-4129-959a-468f63f75656" />
       
-      - 現在這張圖說明「escape_unicode 的實際 code 起點 = 0x1130」, 真實 code 位址 = addr + 0x1130
+      現在這張圖說明「escape_unicode 的實際 code 起點 = 0x1130」, 真實 code 位址 = addr + 0x1130
       > 只要 call escape_unicode，就一定是從 0x1130 開始跑。
       > 那我把 0x1130 開頭那一段換成 shellcode，我的 shellcode 就一定會被執行
 
@@ -142,6 +164,32 @@ C 擴充模組的入口通常是 `PyInit__模組名`，這是整個模組初始�
       <img width="490" height="546" alt="image" src="https://github.com/user-attachments/assets/6954d4ed-42b9-45f3-a710-c8706a3e3878" />
 
       - 這整段都將被我覆蓋成 shellcode, 對這次漏洞利用沒有幫助
+
+   ## 結論
+   1. 成功找到「會被穩定呼叫」的函式入口
+      `escape_unicode` 的函式實體，確認它的 程式入口 offset = 0x1130
+      → 這個入口就是後面用來 塞 shellcode 的位置
+
+   2. 成功找到 Python 用來呼叫函式的「函式指標」  
+      在 `module_methods`（PyMethodDef 陣列）裡：  
+      ```c!
+      0x30c8        escape_unicode          field1_0x8 // Ghidra 解析錯誤
+      0x30c8        escape_unicode          ml_meth    // 正確樣式
+      ```
+      所以可以這樣看： `0x30c8 ml_meth = escape_unicode`  
+      
+      也就是說，檔案中 0x30c8 這個 offset 是一個「函式指標」，
+      裡面存的是 `escape_unicode` 的實際位址；
+      程式載入後，這個值會變成：`_speedups.so_base + 0x1130`
+
+   3. 後續我寫 exploit 腳本只要 把檔案 offset 連到「記憶體位址」：用 /proc/self/maps 拿 base address
+      利用我找到的資訊：
+      - _speedups.so 在記憶體裡的 **base address** = `addr`  
+      - 函式本體 `escape_unicode` 的 **實際位址** = `addr + 0x1130`
+      - 函式指標位置 在檔案裡的 **offset = 0x30c8** 
+      - venv 裡 `_speedups.so` 的 **絕對路徑** = `_speedups_so_path`  
+      
+
 
 
 
